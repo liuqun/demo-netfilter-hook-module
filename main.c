@@ -8,8 +8,6 @@
 MODULE_AUTHOR("Yanchuan Nian");
 MODULE_LICENSE("GPL");
 
-static char target[4] = {0, 0, 0, 0};
-
 static unsigned int nftest_fn(
     #if (LINUX_VERSION_CODE == KERNEL_VERSION(3,10,0)) && !defined(__GENKSYMS__)
         // CentOS 7.6 with Linux kernel version == 3.10.0
@@ -40,7 +38,7 @@ static unsigned int nftest_fn(
     )
 {
     int res;
-    char saddr[4];
+    unsigned char saddr[4];
     int offset;
 
     offset = skb_network_offset(skb);
@@ -49,11 +47,14 @@ static unsigned int nftest_fn(
     if (res < 0) {
         return NF_ACCEPT;
     }
-    res =memcmp(saddr, target, 4);
-    if (!res) {
-        printk(KERN_INFO"receive message from 192.168.7.121\n");
+
+    if (saddr[3] == 14 || saddr[3] == 16) {
+        pr_info("A: Receive packet from %u.%u.%u.%u\n", saddr[0], saddr[1], saddr[2], saddr[3]);
+        return NF_ACCEPT;
     }
-    return NF_ACCEPT;
+
+    pr_info("A: Drop packet from %u.%u.%u.%u\n", saddr[0], saddr[1], saddr[2], saddr[3]);
+    return NF_DROP;
 }
 
 static struct nf_hook_ops nf_test_ops = {
@@ -70,11 +71,6 @@ static int __init nftest_init(void)
 {
     int res;
 
-    target[0] = 192;
-    target[1] = 168;
-    target[2] = 7;
-    target[3] = 121;
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,3,0)
     res = nf_register_net_hook(&init_net, &nf_test_ops);
 #else // LINUX_VERSION_CODE<=4.2.8 did not have nf_register_net_hook(), fallback to use the old API function nf_register_hook()
@@ -82,16 +78,16 @@ static int __init nftest_init(void)
 #endif
 
     if (res < 0) {
-        printk(KERN_INFO"failed to register hook\n");
+        pr_info("A: failed to register hook\n");
     } else {
-        printk(KERN_INFO"hello nftest\n");
+        pr_info("A: nftest Init success\n");
     }
     return res;
 }
 
 static void __exit nftest_exit(void)
 {
-    printk(KERN_INFO"bye nftest\n");
+    pr_info("A: nftest Exit\n");
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,3,0)
     nf_unregister_net_hook(&init_net, &nf_test_ops);
 #else
