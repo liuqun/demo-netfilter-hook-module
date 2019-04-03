@@ -11,12 +11,31 @@ MODULE_LICENSE("GPL");
 static char target[4] = {0, 0, 0, 0};
 
 static unsigned int nftest_fn(
-    #if (LINUX_VERSION_CODE <= KERNEL_VERSION(4,0,9))
-        const struct nf_hook_ops *ops, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff *)
+    #if (LINUX_VERSION_CODE == KERNEL_VERSION(3,10,0)) && !defined(__GENKSYMS__)
+        // CentOS 7.6 with Linux kernel version == 3.10.0
+        const struct nf_hook_ops *ops,
+        struct sk_buff *skb,
+        const struct net_device *in,
+        const struct net_device *out,
+        const struct nf_hook_state *state
+    #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(4,0,0)) && (LINUX_VERSION_CODE < KERNEL_VERSION(4,1,0))
+        // 4.0 <= Linux <= 4.0.9
+        const struct nf_hook_ops *ops,
+        struct sk_buff *skb,
+        const struct net_device *in,
+        const struct net_device *out,
+        int (*okfn)(struct sk_buff *)
+    #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(4,1,0)) && (LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0))
+        // 4.1 <= Linux <= 4.3.6
+        const struct nf_hook_ops *ops,
+        struct sk_buff *skb,
+        const struct nf_hook_state *state
     #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(4,4,0))
-        void *priv, struct sk_buff *skb, const struct nf_hook_state *state
-    #else // 4.1 <= Linux <= 4.3.6
-        const struct nf_hook_ops *ops, struct sk_buff *skb, const struct nf_hook_state *state
+        void *priv,
+        struct sk_buff *skb,
+        const struct nf_hook_state *state
+    #else
+    #error "No support for current Linux kernel version..."
     #endif // LINUX_VERSION_CODE
     )
 {
