@@ -1,0 +1,7 @@
+config LIUQUNTEST
+	tristate "IP: LIUQUN Netfilter test module"
+	depends on NET && INET
+	depends on IPV6 || !IPV6
+	default m
+	help
+	  LIUQUN netfilter test module

@@ -1,0 +1,2 @@
+liuquntest-y := main.o
+obj-$(if $(KBUILD_EXTMOD),m,$(CONFIG_LIUQUNTEST)) := liuquntest.o
