@@ -4,6 +4,7 @@
 #include <linux/init.h>
 #include <linux/netfilter.h>
 #include <linux/skbuff.h>
+#include "my_genlmsg_handler.h"
 
 MODULE_AUTHOR("Yanchuan Nian");
 MODULE_LICENSE("GPL");
@@ -27,24 +28,23 @@ static unsigned int output_filter(
         return NF_ACCEPT;
     }
 
-    //{
-    //    u8 selfsaddr[4] = {192, 168, 1, 16};
-    //    if (memcmp(saddr, selfsaddr, 4) == 0) {
-    //        pr_info("Allow:OUTPUT: IP packet src ip=%u.%u.%u.%u\n",
-    //                saddr[0], saddr[1], saddr[2], saddr[3]);
-    //        return NF_ACCEPT;
-    //    }
-    //}
     offset += 4;
     {
+        const u8 white_dst_addr[4] = {192, 168, 1, 14};
         u8 dst_addr[4];
 
         res = skb_copy_bits(skb, offset, dst_addr, 4);
         if (res < 0) {
             return NF_ACCEPT;
         }
-
-        pr_info("Drop:OUTPUT: src ip=%u.%u.%u.%u, dst ip=%u.%u.%u.%u\n",
+        if (memcmp(dst_addr, white_dst_addr, 4) == 0) {
+            pr_info("Allow:OUTPUT: from src ip=%u.%u.%u.%u, to dst ip=%u.%u.%u.%u\n",
+                saddr[0], saddr[1], saddr[2], saddr[3],
+                dst_addr[0], dst_addr[1], dst_addr[2], dst_addr[3]
+                );
+            return NF_ACCEPT;
+        }
+        pr_info("Drop:OUTPUT: from src ip=%u.%u.%u.%u, to dst ip=%u.%u.%u.%u\n",
             saddr[0], saddr[1], saddr[2], saddr[3],
             dst_addr[0], dst_addr[1], dst_addr[2], dst_addr[3]
             );
@@ -80,11 +80,11 @@ static unsigned int input_filter(
     }
 
     if (memcmp(saddr, target, 4) == 0) {
-        pr_info("Allow:INPUT: src ip=%u.%u.%u.%u\n",
+        pr_info("Allow:INPUT: from src ip=%u.%u.%u.%u\n",
                 saddr[0], saddr[1], saddr[2], saddr[3]);
         return NF_ACCEPT;
     }
-    pr_info("Drop:INPUT: src ip=%u.%u.%u.%u\n",
+    pr_info("Drop:INPUT: from src ip=%u.%u.%u.%u\n",
             saddr[0], saddr[1], saddr[2], saddr[3]);
     return NF_DROP;
 }
@@ -103,6 +103,13 @@ static int __init nftest_init(void)
 {
     int res;
     int res2;
+    int errcode3;
+
+    errcode3 = my_genlmsg_handler_register();
+    if (errcode3 < 0) {
+        pr_info("nftest:Error: Failed to register genlmsg handler, error code = %d\n", errcode3);
+        return errcode3;
+    }
 
     target[0] = 192;
     target[1] = 168;
@@ -135,6 +142,7 @@ static void __exit nftest_exit(void)
     nf_unregister_hook(&pkt_input_hook_ops);
     nf_unregister_hook(&pkt_output_hook_ops);
 #endif
+    my_genlmsg_handler_unregister();
 }
 
 module_init(nftest_init);
