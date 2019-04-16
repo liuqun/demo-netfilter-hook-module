@@ -102,6 +102,7 @@ genl_upd_myvar(struct sk_buff *skb, struct genl_info *info)
 {
     struct sk_buff *msg;
     void *hdr;
+    int ret;
 
     pr_info("nftest:genl_upd_myvar():%d:begin update myvar\n", __LINE__);
     if (!info->attrs[NLE_MYVAR]) {
@@ -122,14 +123,14 @@ genl_upd_myvar(struct sk_buff *skb, struct genl_info *info)
         goto nlmsg_failure;
     }
 
-    if (nla_put_u32(msg, NLE_MYVAR, myvar)) {
+    ret = nla_put_u32(msg, NLE_MYVAR, myvar);
+    if (ret < 0) {
         goto nla_put_failure;
     }
-
     genlmsg_end(msg, hdr);
-    genlmsg_reply(msg, info);
+    ret = genlmsg_reply(msg, info);
     pr_info("nftest:%s:%d:end update myvar\n", __FILE__, __LINE__);
-    return 0;
+    return ret;
 
 nlmsg_failure:
 nla_put_failure:
