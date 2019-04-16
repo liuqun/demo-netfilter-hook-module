@@ -112,7 +112,7 @@ genl_upd_myvar(struct sk_buff *skb, struct genl_info *info)
     myvar = nla_get_u32(info->attrs[NLE_MYVAR]);
     pr_info("nftest:genl_upd_myvar():%d: new myvar = %d\n", __LINE__, myvar);
 
-    msg = nlmsg_new(NLMSG_DEFAULT_SIZE, GFP_KERNEL);
+    msg = genlmsg_new(nla_total_size(sizeof(u32)), GFP_KERNEL);
     if (msg == NULL) {
         return -ENOMEM;
     }
@@ -127,7 +127,7 @@ genl_upd_myvar(struct sk_buff *skb, struct genl_info *info)
     }
 
     genlmsg_end(msg, hdr);
-
+    genlmsg_reply(msg, info);
     pr_info("nftest:%s:%d:end update myvar\n", __FILE__, __LINE__);
     return 0;
 
