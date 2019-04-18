@@ -52,16 +52,6 @@ static unsigned int output_filter(
     return NF_DROP;
 }
 
-static struct nf_hook_ops pkt_input_hook_ops = {
-    .hook=output_filter,
-    .pf=NFPROTO_IPV4,
-    .hooknum=NF_INET_POST_ROUTING,
-    .priority=0,
-    #if (LINUX_VERSION_CODE <= KERNEL_VERSION(4,3,6))
-        .owner=THIS_MODULE,
-    #endif // LINUX_VERSION_CODE
-};
-
 static unsigned int input_filter(
     void *priv,
     struct sk_buff *skb,
@@ -89,20 +79,30 @@ static unsigned int input_filter(
     return NF_DROP;
 }
 
-static struct nf_hook_ops pkt_output_hook_ops = {
-    .hook=input_filter,
-    .pf=NFPROTO_IPV4,
-    .hooknum=NF_INET_PRE_ROUTING,
-    .priority=0,
-    #if (LINUX_VERSION_CODE <= KERNEL_VERSION(4,3,6))
-        .owner=THIS_MODULE,
-    #endif // LINUX_VERSION_CODE
+static struct nf_hook_ops all_my_hooks[] = {
+    {
+        .hook = input_filter,
+        .pf = NFPROTO_IPV4,
+        .hooknum = NF_INET_LOCAL_IN,
+        .priority = 0,// 优先级=0, 即NF_IP_PRI_FILTER
+        // 备注: 枚举值 NF_IP_PRI_FILTER 定义于头文件"uapi/linux/netfilter_ipv4.h"中
+    },
+    {
+        .hook = output_filter,
+        .pf = NFPROTO_IPV4,
+        .hooknum = NF_INET_LOCAL_OUT,
+        .priority = 0,
+    },
 };
+const unsigned int TOTAL_HOOKS = sizeof(all_my_hooks) / sizeof(all_my_hooks[0]);
+
+/* 手动声明 API 函数原型 nf_register_net_hooks() 和 nf_unregister_net_hooks() */
+int nf_register_net_hooks(struct net *net, const struct nf_hook_ops *hooks_to_reg, unsigned int n);
+void nf_unregister_net_hooks(struct net *net, const struct nf_hook_ops *hooks_to_unreg, unsigned int n);
 
 static int __init nftest_init(void)
 {
     int res;
-    int res2;
     int errcode3;
 
     errcode3 = my_genlmsg_handler_register();
@@ -116,15 +116,8 @@ static int __init nftest_init(void)
     target[2] = 1;
     target[3] = 14;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,3,0)
-    res = nf_register_net_hook(&init_net, &pkt_input_hook_ops);
-    res2 = nf_register_net_hook(&init_net, &pkt_output_hook_ops);
-#else // LINUX_VERSION_CODE<=4.2.8 did not have nf_register_net_hook(), fallback to use the old API function nf_register_hook()
-    res = nf_register_hook(&pkt_input_hook_ops);
-    res2 = nf_register_hook(&pkt_output_hook_ops);
-#endif
-
-    if (res < 0 || res2 < 0) {
+    res = nf_register_net_hooks(&init_net, all_my_hooks, TOTAL_HOOKS);
+    if (res < 0) {
         printk(KERN_INFO"failed to register hook\n");
     } else {
         printk(KERN_INFO"hello nftest\n");
@@ -135,15 +128,22 @@ static int __init nftest_init(void)
 static void __exit nftest_exit(void)
 {
     printk(KERN_INFO"bye nftest\n");
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,3,0)
-    nf_unregister_net_hook(&init_net, &pkt_input_hook_ops);
-    nf_unregister_net_hook(&init_net, &pkt_output_hook_ops);
-#else
-    nf_unregister_hook(&pkt_input_hook_ops);
-    nf_unregister_hook(&pkt_output_hook_ops);
-#endif
+    nf_unregister_net_hooks(&init_net, all_my_hooks, TOTAL_HOOKS);
     my_genlmsg_handler_unregister();
 }
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4,3,0)) // code for old linux kernel
+/// v4.2.8 及更低版本的 Linux 内核没有定义接口函数 nf_register_net_hook() 和 nf_unregister_net_hook()
+/// 为了兼容旧版内核, 此处手动定义新版API函数名
+int nf_register_net_hooks(struct net *net, const struct nf_hook_ops *hooks_to_reg, unsigned int n)
+{
+    return nf_register_hooks(hooks_to_reg, n);
+}
+void nf_unregister_net_hooks(struct net *net, const struct nf_hook_ops *hooks_to_unreg, unsigned int n)
+{
+    nf_unregister_hooks(hooks_to_unreg, n);
+}
+#endif // code for old linux kernel
 
 module_init(nftest_init);
 module_exit(nftest_exit);
