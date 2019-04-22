@@ -301,7 +301,7 @@ static void init_my_database_and_filter_tables()
     }
     // --------------------
     forwarding.list = NULL;
-    forwarding.outcodelist = my_outlist1;
+    forwarding.outcodelist = NULL;
     forwarding.n_items = 0;
     forwarding.default_policy_code = NF_ACCEPT;
 }
