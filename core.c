@@ -66,39 +66,17 @@ static unsigned int output_filter(
     const struct nf_hook_state *state
     )
 {
-    int res;
-    u8 saddr[4];
-    int offset;
+    struct filter_comparator *fc;
+    int i;
 
-    offset = skb_network_offset(skb);
-    offset += 12;
-    res = skb_copy_bits(skb, offset, saddr, 4);
-    if (res < 0) {
-        return NF_ACCEPT;
-    }
-
-    offset += 4;
+    for (i=0; i<local_out.n_items; i++)
     {
-        const u8 white_dst_addr[4] = {192, 168, 1, 14};
-        u8 dst_addr[4];
-
-        res = skb_copy_bits(skb, offset, dst_addr, 4);
-        if (res < 0) {
-            return NF_ACCEPT;
+        fc = &(local_out.list[i]);
+        if (filter_match_packet(fc, skb)) {
+            return local_out.outcodelist[i];
         }
-        if (memcmp(dst_addr, white_dst_addr, 4) == 0) {
-            pr_info("Allow:OUTPUT: from src ip=%u.%u.%u.%u, to dst ip=%u.%u.%u.%u\n",
-                saddr[0], saddr[1], saddr[2], saddr[3],
-                dst_addr[0], dst_addr[1], dst_addr[2], dst_addr[3]
-                );
-            return NF_ACCEPT;
-        }
-        pr_info("Drop:OUTPUT: from src ip=%u.%u.%u.%u, to dst ip=%u.%u.%u.%u\n",
-            saddr[0], saddr[1], saddr[2], saddr[3],
-            dst_addr[0], dst_addr[1], dst_addr[2], dst_addr[3]
-            );
     }
-    return NF_DROP;
+    return local_out.default_policy_code;
 }
 
 static struct nf_hook_ops all_my_hooks[] = {
