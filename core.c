@@ -5,31 +5,10 @@
 #include <linux/netfilter.h>
 #include <linux/skbuff.h>
 #include "my_genlmsg_handler.h"
+#include "my_filter_table.h"
 
 MODULE_AUTHOR("Yanchuan Nian");
 MODULE_LICENSE("GPL");
-
-enum layer_num {
-    //LAYER_LINK = 2, // MAC头,也称链路层头
-    LAYER_NETWORK = 3, // IP头,也称network头
-    LAYER_TRANSPORT = 4, // 传输层头,也称UDP/TCP/ICMP头
-};
-
-struct filter_comparator {
-    //int uuid;
-    enum layer_num orig_layer;// 若从IP头开始计算则=3; 若从TCP头开始计算则=4; 等于其他值一律判无效
-    int orig_len;//必须大于0否则会导致无法预测的结果
-    int orig_offset;
-    int orig_mask_n_bits;// IP地址子网掩码位数取值一般为32位、24位、16位、8位或0位；端口号掩码则无意义
-    int target_idx;// 对应到database[idx下标]
-};
-
-struct filter_table {
-    struct filter_comparator *list;
-    int *outcodelist;//
-    int n_items;
-    int default_policy_code;
-};
 
 static struct filter_table local_in;
 static struct filter_table local_out;
@@ -254,6 +233,18 @@ static struct filter_comparator my_list2[10];
 const size_t LIST2_MAX_ITEMS = ARRAY_SIZE(my_list2);
 enum filter_policy_code my_outlist2[10];
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+int append_filter_table(struct filter_table *table, const struct filter_comparator *fc, unsigned int code)
+{
+    if (table_is_full(table)) {
+        return table->n_items;
+    }
+    table->list[table->n_items] = *fc;
+    table->outcodelist[table->n_items] = (unsigned int)code;
+    table->n_items += 1;
+    return table->n_items;
+}
+
 ////////////////////////////////////////////////
 static void init_my_database_and_filter_tables()
 {
@@ -272,6 +263,7 @@ static void init_my_database_and_filter_tables()
     local_in.list = my_list1;
     local_in.outcodelist = my_outlist1;
     local_in.n_items = 0;
+    local_in.max_items = LIST1_MAX_ITEMS;
     item = &(local_in.list[0]);
     if (debug) {
         // 从layer2即IP层取4字节地址
@@ -288,6 +280,7 @@ static void init_my_database_and_filter_tables()
     local_out.list = my_list2;
     local_out.outcodelist = my_outlist2;
     local_out.n_items = 0;
+    local_out.max_items = LIST2_MAX_ITEMS;
     item = &(local_out.list[0]);
     if (debug) {
         // 从layer2即IP层取4字节地址
