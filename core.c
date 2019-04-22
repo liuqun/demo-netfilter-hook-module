@@ -147,21 +147,21 @@ void nf_unregister_net_hooks(struct net *net, const struct nf_hook_ops *hooks_to
 
 /////////////////////////
 enum filter_policy_code {
-    MY_DROP = 0, // NF_DROP=0
-    MY_ACCEPT = 1, // NF_ACCEPT=1
-    MY_STOLEN = 2, // NF_STOLEN=2
-    MY_QUEUE = 3, // NF_QUEUE=3
-    MY_REPEAT = 4, // NF_REPEAT=4
+    DROP = 0, // NF_DROP=0
+    ACCEPT = 1, // NF_ACCEPT=1
+    STOLEN = 2, // NF_STOLEN=2
+    QUEUE = 3, // NF_QUEUE=3
+    REPEAT = 4, // NF_REPEAT=4
 };
 
 static const char *filter_policystr_from_policycode(int code)
 {
     const char *strlist[]={
-        [MY_DROP] = "Drop",
-        [MY_ACCEPT] = "Accept",
-        [MY_STOLEN] = "STOLEN_debug",
-        [MY_QUEUE] = "QUEUE_debug",
-        [MY_REPEAT] = "REPEAT_debug",
+        [DROP] = "Drop",
+        [ACCEPT] = "Accept",
+        [STOLEN] = "STOLEN_debug",
+        [QUEUE] = "QUEUE_debug",
+        [REPEAT] = "REPEAT_debug",
         [15] = "CODE_15_debug",
     };
     const size_t MAX_CODE = ARRAY_SIZE(strlist)- 1;
