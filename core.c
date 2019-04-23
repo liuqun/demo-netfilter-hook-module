@@ -245,6 +245,30 @@ int append_filter_table(struct filter_table *table, const struct filter_comparat
     return table->n_items;
 }
 
+unsigned int db_idx=0;
+size_t get_filter_db_max_capacity(int db_select)
+{
+    (void) db_select; // 按编号切换不同的数据库, 暂时用不到
+    return sizeof(database);
+}
+
+size_t get_filter_db_remain_size(int db_select)
+{
+    (void) db_select; // 按编号切换不同的数据库, 暂时用不到
+    return sizeof(database) - db_idx;
+}
+
+///////////////////////////////////////////////////////////////////
+int filter_db_add_record(int db_select, const void *data, size_t datalen)
+{
+    if (datalen > get_filter_db_remain_size(db_select)) {
+        return -ENOMEM; // 存储空间不足
+    }
+    memcpy(database, data, datalen);
+    db_idx += datalen;
+    return (int)db_idx;
+}
+
 ////////////////////////////////////////////////
 static void init_my_database_and_filter_tables()
 {
@@ -252,40 +276,32 @@ static void init_my_database_and_filter_tables()
     const int debug = 1; // 调试阶段允许收发特定网段的数据包
 
     memset(database, 0x0, sizeof(database));
-    if (debug) {
-        database[0] = 192;
-        database[1] = 168;
-        database[2] = 1;
-        database[3] = 0;
-    }
-    if (debug) {
-        database[4] = 127;// 回环地址
-        database[5] = 0;
-        database[6] = 0;
-        database[7] = 0;
-    }
     // ------------------------------------
-    local_in.default_policy_code = NF_DROP;
+    local_in.default_policy_code = NF_ACCEPT; // 默认规则:是否允许入站流量
     local_in.list = my_list1;
     local_in.outcodelist = my_outlist1;
     local_in.max_items = LIST1_MAX_ITEMS;
     flush_filter_table(&local_in);
-    if (debug) {
-        // 从LAYER_NETWORK即IP层取4字节地址
-        item.orig_layer = LAYER_NETWORK;
-        item.orig_len = 4;
-        item.orig_offset = 12; // 注意: 来源地址偏移12字节 / 目标地址偏移16字节
-        item.orig_mask_n_bits = 24;
-        item.target_idx = 0; // 对应 database[] 中第一个IP地址
-        append_filter_table(&local_in, &item, NF_ACCEPT);
-    }
-    if (debug) {
-        item.orig_layer = LAYER_NETWORK;
-        item.orig_len = 4;
-        item.orig_offset = 12;
-        item.orig_mask_n_bits = 8;
-        item.target_idx = 4; // 对应 database[] 中第二个IP地址
-        append_filter_table(&local_in, &item, NF_ACCEPT);
+    if (debug) { // TODO: 删除临时调试代码
+        // const u8 ipaddr1[4] = {192, 168, 1, 0}; // 测试环境
+        // const u8 ipaddr2[4] = {127, 0, 0, 0}; // 回环地址
+        // int target_idx;
+        //
+        // target_idx = filter_db_add_record(0, ipaddr1, sizeof(ipaddr1));
+        // item.orig_layer = LAYER_NETWORK;
+        // item.orig_len = sizeof(ipaddr1);
+        // item.orig_offset = 12; // 注意: 来源地址偏移12字节 / 目标地址偏移16字节
+        // item.orig_mask_n_bits = 24;
+        // item.target_idx = target_idx;
+        // append_filter_table(&local_in, &item, NF_ACCEPT);
+        //
+        // target_idx = filter_db_add_record(0, ipaddr2, sizeof(ipaddr2));
+        // item.orig_layer = LAYER_NETWORK;
+        // item.orig_len = sizeof(ipaddr2);
+        // item.orig_offset = 12;
+        // item.orig_mask_n_bits = 8;
+        // item.target_idx = target_idx;
+        // append_filter_table(&local_in, &item, NF_ACCEPT);
     }
     // -------------------------------------
     local_out.default_policy_code = NF_DROP;
@@ -294,19 +310,24 @@ static void init_my_database_and_filter_tables()
     local_out.max_items = LIST2_MAX_ITEMS;
     flush_filter_table(&local_out);
     if (debug) {
+        const u8 ipaddr1[4] = {192, 168, 1, 0}; // 测试环境局域网
+        const u8 ipaddr2[4] = {127, 0, 0, 0}; // 回环地址
+        int target_idx;
+
+        target_idx = filter_db_add_record(0, ipaddr1, sizeof(ipaddr1));
         item.orig_layer = LAYER_NETWORK;
-        item.orig_len = 4;
-        item.orig_offset = 16; // 注意: 来源地址偏移12字节 / 目标地址偏移16字节
+        item.orig_len = sizeof(ipaddr1);
+        item.orig_offset = 16; // 注: 从LAYER_NETWORK层起始字节计算来源地址偏移量为12字节 / 目标地址偏移量为16字节
         item.orig_mask_n_bits = 24;
-        item.target_idx = 0; // 对应 database[] 中第一个IP地址
+        item.target_idx = target_idx;
         append_filter_table(&local_out, &item, NF_ACCEPT);
-    }
-    if (debug) {
+
+        target_idx = filter_db_add_record(0, ipaddr2, sizeof(ipaddr2));
         item.orig_layer = LAYER_NETWORK;
-        item.orig_len = 4;
-        item.orig_offset = 12;
+        item.orig_len = sizeof(ipaddr2);
+        item.orig_offset = 16;
         item.orig_mask_n_bits = 8;
-        item.target_idx = 4; // 对应 database[] 中第二个IP地址
+        item.target_idx = target_idx;
         append_filter_table(&local_out, &item, NF_ACCEPT);
     }
     // --------------------
