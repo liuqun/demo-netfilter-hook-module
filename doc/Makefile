@@ -1,4 +1,5 @@
 objfiles += dropper.o
+objfiles += xdp-example.o
 host_cpu := $(shell uname --machine)
 CC := clang
 CFLAGS := -O2 -target bpf
