@@ -10,12 +10,12 @@
 MODULE_AUTHOR("Yanchuan Nian");
 MODULE_LICENSE("GPL");
 
-static struct filter_table local_in;
-static struct filter_table local_out;
-static struct filter_table forwarding;
+static struct ipv4addr_filter_table local_in;
+static struct ipv4addr_filter_table local_out;
+static struct ipv4addr_filter_table forwarding;
 
-/* 手动声明内部函数原型 filter_match_packet() */
-static const void *filter_match_packet(const struct filter_comparator *fc, struct sk_buff *pkt_skb); // 备注: 返回值NULL表示不匹配, 其他值表示匹配
+/* 手动声明内部函数原型 packet_match_ipv4addr() */
+static const void *packet_match_ipv4addr(const struct ipv4addr_comparator *fc, struct sk_buff *pkt_skb); // 备注: 返回值NULL表示不匹配, 其他值表示匹配
 /* 手动声明内部函数原型 filter_policystr_from_policycode() */
 static const char *filter_policystr_from_policycode(int code);
 
@@ -25,13 +25,13 @@ static unsigned int input_filter(
     const struct nf_hook_state *state
     )
 {
-    struct filter_comparator *fc;
+    struct ipv4addr_comparator *fc;
     int i;
 
     for (i=0; i<local_in.n_items; i++)
     {
         fc = &(local_in.list[i]);
-        if (filter_match_packet(fc, skb)) {
+        if (packet_match_ipv4addr(fc, skb)) {
             pr_info("input_filter(): packet match filter index=%d\n", i);
             return local_in.outcodelist[i];
         }
@@ -45,13 +45,13 @@ static unsigned int output_filter(
     const struct nf_hook_state *state
     )
 {
-    struct filter_comparator *fc;
+    struct ipv4addr_comparator *fc;
     int i;
 
     for (i=0; i<local_out.n_items; i++)
     {
         fc = &(local_out.list[i]);
-        if (filter_match_packet(fc, skb)) {
+        if (packet_match_ipv4addr(fc, skb)) {
             return local_out.outcodelist[i];
         }
     }
@@ -176,25 +176,16 @@ static void AND(void *val, void *mask, size_t len)
 static u8 database[4096];// 备注: 单独存储各种IP地址、端口号以及报文中其他特殊字段的码值
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
-static const void *filter_match_packet(const struct filter_comparator *fc, struct sk_buff *pkt_skb) // 返回值NULL表示不匹配, 其他值表示匹配
+static const void *packet_match_ipv4addr(const struct ipv4addr_comparator *fc, struct sk_buff *pkt_skb) // 返回值NULL表示不匹配, 其他值表示匹配
 {
     u32 mask;
     int offset;
     u8 buf[64];
     u8 *origval=NULL;
     const size_t MAX_LOCAL_BUFFFER_SIZE=ARRAY_SIZE(buf);
-    const struct filter_comparator *out = NULL;
+    const struct ipv4addr_comparator *out = NULL;
 
-    switch (fc->orig_layer) {
-        case LAYER_NETWORK:
-            offset = skb_network_offset(pkt_skb);
-            break;
-        case LAYER_TRANSPORT:
-            offset = skb_transport_offset(pkt_skb);
-            break;
-        default:
-            goto unknown_layer_expection;
-    }
+    offset = skb_transport_offset(pkt_skb);
     origval = buf;
     if (fc->orig_len > MAX_LOCAL_BUFFFER_SIZE) {
         origval = kmalloc(fc->orig_len, GFP_KERNEL);
@@ -207,10 +198,14 @@ static const void *filter_match_packet(const struct filter_comparator *fc, struc
         out = NULL;
         goto normal_cleanups;
     }
-    if (LAYER_NETWORK == fc->orig_layer) { // 只有 layer 3 IP 层才支持子网掩码设置
-        AND(origval, write_ipv4_netmask(&mask, fc->orig_mask_n_bits), 4);
-    }
+    AND(origval, write_ipv4_netmask(&mask, fc->orig_mask_n_bits), 4);
     if (memcmp(origval, database + fc->target_idx, fc->orig_len) == 0) {
+        pr_err("DEBUG:IP in packet =%u.%u.%u.%u\n", origval[0], origval[1], origval[2], origval[3]);
+        pr_err("DEBUG:IP in rule =%u.%u.%u.%u\n",
+            database[0 + fc->target_idx],
+            database[1 + fc->target_idx],
+            database[2 + fc->target_idx],
+            database[3 + fc->target_idx]);
         out = fc;
     }
 normal_cleanups:
@@ -218,23 +213,21 @@ normal_cleanups:
         kfree(origval);
     }
     return (void *)out;
-unknown_layer_expection:
-    return NULL;
 lack_of_memory_expection:
     return NULL;
 }
 
 //--------------------------------------------------
-static struct filter_comparator my_list1[10];
+static struct ipv4addr_comparator my_list1[10];
 const size_t LIST1_MAX_ITEMS = ARRAY_SIZE(my_list1);
 enum filter_policy_code my_outlist1[10];
 //--------------------------------------------------
-static struct filter_comparator my_list2[10];
+static struct ipv4addr_comparator my_list2[10];
 const size_t LIST2_MAX_ITEMS = ARRAY_SIZE(my_list2);
 enum filter_policy_code my_outlist2[10];
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
-int append_filter_table(struct filter_table *table, const struct filter_comparator *fc, unsigned int code)
+int append_filter_table(struct ipv4addr_filter_table *table, const struct ipv4addr_comparator *fc, unsigned int code)
 {
     if (table_is_full(table)) {
         return table->n_items;
@@ -272,7 +265,7 @@ int filter_db_add_record(int db_select, const void *data, size_t datalen)
 ////////////////////////////////////////////////
 static void init_my_database_and_filter_tables()
 {
-    struct filter_comparator item;
+    struct ipv4addr_comparator item;
     const int debug = 1; // 调试阶段允许收发特定网段的数据包
 
     memset(database, 0x0, sizeof(database));
@@ -288,7 +281,6 @@ static void init_my_database_and_filter_tables()
         // int target_idx;
         //
         // target_idx = filter_db_add_record(0, ipaddr1, sizeof(ipaddr1));
-        // item.orig_layer = LAYER_NETWORK;
         // item.orig_len = sizeof(ipaddr1);
         // item.orig_offset = 12; // 注意: 来源地址偏移12字节 / 目标地址偏移16字节
         // item.orig_mask_n_bits = 24;
@@ -296,7 +288,6 @@ static void init_my_database_and_filter_tables()
         // append_filter_table(&local_in, &item, NF_ACCEPT);
         //
         // target_idx = filter_db_add_record(0, ipaddr2, sizeof(ipaddr2));
-        // item.orig_layer = LAYER_NETWORK;
         // item.orig_len = sizeof(ipaddr2);
         // item.orig_offset = 12;
         // item.orig_mask_n_bits = 8;
@@ -315,7 +306,6 @@ static void init_my_database_and_filter_tables()
         int target_idx;
 
         target_idx = filter_db_add_record(0, ipaddr1, sizeof(ipaddr1));
-        item.orig_layer = LAYER_NETWORK;
         item.orig_len = sizeof(ipaddr1);
         item.orig_offset = 16; // 注: 从LAYER_NETWORK层起始字节计算来源地址偏移量为12字节 / 目标地址偏移量为16字节
         item.orig_mask_n_bits = 24;
@@ -323,7 +313,6 @@ static void init_my_database_and_filter_tables()
         append_filter_table(&local_out, &item, NF_ACCEPT);
 
         target_idx = filter_db_add_record(0, ipaddr2, sizeof(ipaddr2));
-        item.orig_layer = LAYER_NETWORK;
         item.orig_len = sizeof(ipaddr2);
         item.orig_offset = 16;
         item.orig_mask_n_bits = 8;
