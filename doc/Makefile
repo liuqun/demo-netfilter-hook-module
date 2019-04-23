@@ -1,5 +1,4 @@
-objfiles += dropper.o
-objfiles += xdp-example.o
+objfiles += xdp-example.o xdp-example.S
 host_cpu := $(shell uname --machine)
 CC := clang
 CFLAGS := -O2 -target bpf
@@ -10,5 +9,7 @@ all: $(objfiles)
 
 %.o: %.c
 	$(COMPILE.c) $< -o $@
+%.S: %.c
+	$(CC) -S $(CFLAGS) $(CPPFLAGS) -c $< -o $@
 
 # vi: set noexpandtab ts=4 sw=4 :
