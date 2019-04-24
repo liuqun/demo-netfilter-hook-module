@@ -1,8 +1,10 @@
 objfiles += xdp-example.o xdp-example.S
+objfiles += tc-example.o tc-example.S
 host_cpu := $(shell uname --machine)
 CC := clang
 CFLAGS := -O2 -target bpf
 CPPFLAGS += -I/usr/include/$(host_cpu)-linux-gnu
+CPPFLAGS += -I./include
 
 .PHONY: all
 all: $(objfiles)
