@@ -1,8 +1,8 @@
-objfiles += xdp-example.o xdp-example.S
-objfiles += tc-example.o tc-example.S
-objfiles += dropper.o dropper.S
+objfiles += $(patsubst %.c,%.o,$(wildcard *.c))
+asmfiles += $(patsubst %.c,%.asm,$(wildcard *.c))
 host_cpu := $(shell uname --machine)
-CC := clang
+LLC ?= llc-8
+CLANG ?= clang-8
 CFLAGS := -O2 -target bpf
 CPPFLAGS += -I/usr/include/$(host_cpu)-linux-gnu
 CPPFLAGS += -I./include
@@ -10,9 +10,16 @@ CPPFLAGS += -I./include
 .PHONY: all
 all: $(objfiles)
 
+.PHONY: asm
+asm: $(asmfiles)
+
+.PHONY: clean
+clean:
+	$(RM) $(objfiles) $(asmfiles)
+
 %.o: %.c
-	$(COMPILE.c) $< -o $@
-%.S: %.c
-	$(CC) -S $(CFLAGS) $(CPPFLAGS) -c $< -o $@
+	$(CLANG) $(CPPFLAGS) $(CFLAGS) -o $@ -c $<
+%.asm: %.c
+	$(CLANG) $(CPPFLAGS) $(CFLAGS) -S -o $@ -c $<
 
 # vi: set noexpandtab ts=4 sw=4 :
