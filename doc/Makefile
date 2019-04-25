@@ -7,8 +7,11 @@ CFLAGS := -O2 -target bpf
 CPPFLAGS += -I/usr/include/$(host_cpu)-linux-gnu
 CPPFLAGS += -I./include
 
+.PHONY: obj
+obj: $(objfiles)
+
 .PHONY: all
-all: $(objfiles)
+all: asm obj
 
 .PHONY: asm
 asm: $(asmfiles)
