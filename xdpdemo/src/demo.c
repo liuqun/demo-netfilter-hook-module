@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <linux/stddef.h>
 #include <linux/bpf.h>
 #include <linux/in.h>
 #include <linux/if_ether.h>
@@ -17,11 +18,6 @@
 struct cursor {
     void *pos;
 };
-
-// #ifndef __always_inline
-// # define __always_inline __attribute__((always_inline)) inline
-// # define __forceinline __always_inline
-// #endif
 
 /* 函数原型声明 */
 __always_inline static int cursor_find_next_header_ethernet(struct cursor *p, const void *data_end, struct ethhdr **ethernet_hdr_out);
